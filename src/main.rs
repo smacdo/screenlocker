@@ -1,4 +1,6 @@
 use std::fmt;
+// TODO(scott): Move this code to a library.
+// TODO(scott): Move library code to library specific crate called `screenlock`.
 
 // Link to platform specific APIs to initiate the screen lock.
 #[cfg(target_os = "macos")]
@@ -15,7 +17,7 @@ pub struct LockScreenError {}
 
 impl fmt::Display for LockScreenError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: Error reporting for Windows, Linux platforms.
+        // TODO(scott): Make error message + code for Windows, Linux platforms.
         write!(f, "something went wrong")
     }
 }
@@ -27,6 +29,9 @@ pub fn lock_screen() -> Result<()> {
         SACLockScreenImmediate();
         Ok(())
     }
+    // TODO(scott): Windows lock screen - use Win32 API.
+    // TODO(scott): Linux lock screen - write code to invoke a list of programs.
+    // TODO(scott): Return an error if none of the supported platforms are used.
 }
 
 fn main() {
