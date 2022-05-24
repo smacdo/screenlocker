@@ -30,6 +30,8 @@ pub fn lock_screen() -> Result<()> {
 }
 
 fn main() {
-    // TODO: Print an error to stderr if anything goes wrong.
-    lock_screen().expect("Something went wrong when trying to lock the screen");
+    lock_screen().unwrap_or_else(|err| {
+        eprintln!("error when trying to lock screen: {}", err);
+        std::process::exit(1);
+    });
 }
