@@ -29,31 +29,24 @@ extern "system" {
 //============================================================================//
 // Lock screen crate implementation.                                          //
 //============================================================================//
-type Result<T> = std::result::Result<T, ErrorDetails>;
+type Result<T> = std::result::Result<T, Error>;
 
+/// Error information explaining why the screen couldn't be locked.
 #[derive(Debug, Clone)]
-pub enum ErrorType {
+pub enum Error {
+    /// A Win32 API function reported an error code.
     Win32(Win32ErrorCode),
-    UnsupportedPlatform
+    /// The current OS platform is not supported (yet) by screenlocker.
+    UnsupportedPlatform,
 }
 
-/// Contains relevant error information when the screen could't be locked.
-#[derive(Debug, Clone)]
-pub struct ErrorDetails {
-    pub error_type: ErrorType,
-}
-
-impl ErrorDetails {
-    pub fn new_win32_error(code: Win32ErrorCode) -> Self {
-        ErrorDetails { error_type: ErrorType::Win32(code) }
-    }
-}
-
-impl fmt::Display for ErrorDetails {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.error_type {
-            ErrorType::Win32(ec) => write!(f, "GetLastResult() returned {}", ec),
-            ErrorType::UnsupportedPlatform => write!(f, "This platform is not supported - please file a bug")
+        match self {
+            Error::Win32(ec) => write!(f, "GetLastResult() returned {}", ec),
+            Error::UnsupportedPlatform => {
+                write!(f, "This platform is not supported - please file a bug")
+            }
         }
     }
 }
@@ -61,6 +54,8 @@ impl fmt::Display for ErrorDetails {
 /// Locks the computer screen by hiding the current desktop, and requiring
 /// the user to re-enter their password before continuing.
 pub fn lock_screen() -> Result<()> {
+    // TODO(scott): Linux lock screen - write code to invoke a list of programs.
+
     #[cfg(target_os = "macos")]
     unsafe {
         SACLockScreenImmediate();
@@ -70,14 +65,12 @@ pub fn lock_screen() -> Result<()> {
     #[cfg(target_os = "windows")]
     unsafe {
         if 0 == LockWorkStation() {
-            Err(ErrorDetails::new_win32_error(GetLastError()))
+            Err(Error::Win32(GetLastError()))
         } else {
             Ok(())
-        }        
+        }
     }
 
-    // TODO(scott): Linux lock screen - write code to invoke a list of programs.
-
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-    panic!("Platform not supported -- please file a bug report!")
+    Err(Error::UnsupportedPlatform)
 }
