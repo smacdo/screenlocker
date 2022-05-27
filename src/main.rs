@@ -28,7 +28,8 @@ type Result<T> = std::result::Result<T, ErrorDetails>;
 
 #[derive(Debug, Clone)]
 pub enum ErrorType {
-    Win32(Win32ErrorCode)
+    Win32(Win32ErrorCode),
+    UnsupportedPlatform
 }
 
 /// Contains relevant error information when the screen could't be locked.
@@ -47,6 +48,7 @@ impl fmt::Display for ErrorDetails {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.error_type {
             ErrorType::Win32(ec) => write!(f, "GetLastResult() returned {}", ec),
+            ErrorType::UnsupportedPlatform => write!(f, "This platform is not supported - please file a bug")
         }
     }
 }
@@ -70,7 +72,9 @@ pub fn lock_screen() -> Result<()> {
     }
 
     // TODO(scott): Linux lock screen - write code to invoke a list of programs.
-    // TODO(scott): Return an error if none of the supported platforms are used.
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    panic!("Platform not supported -- please file a bug report!")
 }
 
 fn main() {
