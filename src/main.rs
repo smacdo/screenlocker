@@ -9,18 +9,48 @@ extern "C" {
     fn SACLockScreenImmediate();
 }
 
-type Result<T> = std::result::Result<T, LockScreenError>;
+#[cfg(target_os = "windows")]
+pub type Win32ErrorCode = u32;
+
+#[cfg(target_os = "windows")]
+#[link(name = "user32")]
+extern "system" {
+    fn LockWorkStation() -> i32;
+}
+
+#[cfg(target_os = "windows")]
+#[link(name = "Kernel32")]
+extern "system" {
+    fn GetLastError() -> Win32ErrorCode;
+}
+
+type Result<T> = std::result::Result<T, ErrorDetails>;
+
+#[derive(Debug, Clone)]
+pub enum ErrorType {
+    Win32(Win32ErrorCode)
+}
 
 /// Contains relevant error information when the screen could't be locked.
 #[derive(Debug, Clone)]
-pub struct LockScreenError {}
+pub struct ErrorDetails {
+    pub error_type: ErrorType,
+}
 
-impl fmt::Display for LockScreenError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO(scott): Make error message + code for Windows, Linux platforms.
-        write!(f, "something went wrong")
+impl ErrorDetails {
+    pub fn new_win32_error(code: Win32ErrorCode) -> Self {
+        ErrorDetails { error_type: ErrorType::Win32(code) }
     }
 }
+
+impl fmt::Display for ErrorDetails {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.error_type {
+            ErrorType::Win32(ec) => write!(f, "GetLastResult() returned {}", ec),
+        }
+    }
+}
+
 /// Locks the computer screen by hiding the current desktop, and requiring
 /// the user to re-enter their password before continuing.
 pub fn lock_screen() -> Result<()> {
@@ -29,7 +59,16 @@ pub fn lock_screen() -> Result<()> {
         SACLockScreenImmediate();
         Ok(())
     }
-    // TODO(scott): Windows lock screen - use Win32 API.
+
+    #[cfg(target_os = "windows")]
+    unsafe {
+        if 0 == LockWorkStation() {
+            Err(ErrorDetails::new_win32_error(GetLastError()))
+        } else {
+            Ok(())
+        }        
+    }
+
     // TODO(scott): Linux lock screen - write code to invoke a list of programs.
     // TODO(scott): Return an error if none of the supported platforms are used.
 }
