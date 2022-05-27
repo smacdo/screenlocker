@@ -11,7 +11,6 @@ extern "C" {
 }
 
 // Windows.
-#[cfg(target_os = "windows")]
 pub type Win32ErrorCode = u32;
 
 #[cfg(target_os = "windows")]
