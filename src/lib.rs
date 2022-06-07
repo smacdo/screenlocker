@@ -4,11 +4,10 @@ mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
+#[cfg(target_os = "linux")]
+mod linux;
+
 use std::fmt;
-// START for linux suport
-use std::path::Path;
-use std::process::Command;
-// END
 
 pub type Win32ErrorCode = u32;
 type Result<T> = std::result::Result<T, Error>;
@@ -90,65 +89,6 @@ impl fmt::Display for Error {
     }
 }
 
-/// Search through a list of programs and execute the first one that is found on
-/// the system. Return the result of running said command - either success if
-/// the commmand returned 0, or an error code indicating what went wrong.
-///
-/// Note that another approach is to keep trying to run commands from
-/// `possible_cmds` until one succeeds but that causes a messy situation where
-/// it is unclear what result to return to the caller. If they all fail, what
-/// error code is returned? If only one fails how do we pass the error code back
-/// while still indicating success? Instead it's easier to assume that the list
-/// defines a list of programs that are expected to always been a screen locking
-/// program, and that if it fails to run there is a larger issue that the caller
-/// must handle.
-///
-/// Developers should accomodate users with different system setups by including
-/// multiple absolute paths to well known screen locking programs covering the
-/// majority of desktop environments (Gnome, KDE, XFCE etc). If a hardcoded list
-/// is not sufficient then consider offering a user editable configuration file
-/// for endusers to customize.
-fn run_first_found_exe(possible_cmds: &mut [Command]) -> Result<()> {
-    // TODO(smacdo): Consider returning index of command that was selected.
-    fn io_cmd_to_string(cmd: &Command) -> Option<String> {
-        cmd.get_program().to_str().map(|s| s.to_string())
-    }
-
-    fn io_error(cmd: &Command, e: &std::io::Error) -> Error {
-        Error::ExeIoError {
-            cmd: io_cmd_to_string(cmd),
-            kind: e.kind(),
-            msg: e.to_string(),
-        }
-    }
-
-    // Find first command that exists on the system.
-    let mut cmd = possible_cmds
-        .iter_mut()
-        .find(|cmd| Path::is_file(Path::new(cmd.get_program())));
-
-    // Execute the selected command, or return an error if no command could be
-    // found on the user's systme.
-    match cmd.as_mut() {
-        Some(cmd) => match cmd.output() {
-            Ok(output) => {
-                // Only return sucess if the command executed succesfully and
-                // returned an error code of zero.
-                if output.status.success() {
-                    Ok(())
-                } else {
-                    Err(Error::NonZeroExit {
-                        cmd: io_cmd_to_string(cmd),
-                        exit_code: output.status.code(),
-                    })
-                }
-            }
-            Err(e) => Err(io_error(cmd, &e)),
-        },
-        None => Err(Error::NoExeFound),
-    }
-}
-
 /// Locks the computer screen by hiding the current desktop, and requiring
 /// the user to re-enter their password before continuing.
 pub fn lock_screen() -> Result<()> {
@@ -158,22 +98,9 @@ pub fn lock_screen() -> Result<()> {
     #[cfg(target_os = "windows")]
     return crate::windows::lock_screen_windows();
 
-    // TODO(scott): Add linux support.
+    #[cfg(target_os = "linux")]
+    return crate::linux::lock_screen_linux();
 
-    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     return Err(Error::UnsupportedPlatform);
-}
-
-#[cfg(test)]
-mod tests {
-    // TODO(smacdo): Write unit tests for `run_first_found_exe`.
-    // Scenarios:
-    //  - one command that exists and returns 0 -> Ok(())
-    //  - one command that doe not exist -> Err(NoExeFound).
-    //  - n commands, none that exist -> Err(NoExeFound).
-    //  - n commands, one that exists -> Ok(())
-    //  - one command that exists and returns 27 -> Err(NonZeroExit)
-    //  - same as above but path is not valid utf8 -> Err(NonZeroExit)
-    //  - one command that exists and terminates via signal -> Err(NonZeroExit).
-    //  - one command that is not executable -> Err(io_error).
 }
