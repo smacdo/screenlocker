@@ -1,4 +1,4 @@
-use crate::{Result, Win32ErrorCode};
+use crate::{Error, Result, Win32ErrorCode};
 
 #[link(name = "user32")]
 extern "system" {
