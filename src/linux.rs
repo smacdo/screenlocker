@@ -4,9 +4,22 @@ use std::process::Command;
 use crate::{Error, Result};
 
 pub fn lock_screen_linux() -> Result<()> {
-    // TODO(smacdo): Finish implementation with multiple well known locking
-    //               programs from major distributions.
-    todo!()
+    // TODO(smacdo): Add user customization via config file.
+
+    // The construction of `default_commands` is a little weird, but I cannot
+    // find a workaround. `Command` uses a builder pattern whereby methods like
+    // `arg` return `&mut Command` making it impossible to store into an array.
+    // My solution is to construct the comands in place, and then manually
+    // configure them later. It's more verbose but fine I suppose.
+    let mut default_commands = [
+        Command::new("/usr/bin/xdg-screensaver"),
+        Command::new("/usr/bin/gnome-screensaver-command"),
+    ];
+
+    default_commands[0].arg("lock");
+    default_commands[1].arg("--lock");
+
+    run_first_found_exe(&mut default_commands)
 }
 
 /// Search through a list of programs and execute the first one that is found on
