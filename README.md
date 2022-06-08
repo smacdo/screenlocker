@@ -6,8 +6,6 @@
 Screenlocker is a command line program (and reusable library) to request your
 desktop session to be locked using the current platform's native API.
 
-**Linux and Windows support coming soon**
-
 ## Installation
 Use Rust's [cargo](https://www.rust-lang.org/tools/install) tool to install
 screenlocker.
@@ -49,7 +47,7 @@ computer before building.
 $ git clone git@github.com:smacdo/screenlocker.git
 $ cd screenlocker
 $ cargo test
-$ cargo run -- o cbiprt
+$ cargo run
 ```
 
 ## Contributing
