@@ -4,21 +4,14 @@ use std::process::Command;
 use crate::{Error, Result};
 
 pub fn lock_screen_linux() -> Result<()> {
+    // TODO(smacdo): Finish implementation with multiple well known locking
+    //               programs from major distributions.
     todo!()
 }
 
 /// Search through a list of programs and execute the first one that is found on
 /// the system. Return the result of running said command - either success if
 /// the commmand returned 0, or an error code indicating what went wrong.
-///
-/// Note that another approach is to keep trying to run commands from
-/// `possible_cmds` until one succeeds but that causes a messy situation where
-/// it is unclear what result to return to the caller. If they all fail, what
-/// error code is returned? If only one fails how do we pass the error code back
-/// while still indicating success? Instead it's easier to assume that the list
-/// defines a list of programs that are expected to always been a screen locking
-/// program, and that if it fails to run there is a larger issue that the caller
-/// must handle.
 ///
 /// Developers should accomodate users with different system setups by including
 /// multiple absolute paths to well known screen locking programs covering the
