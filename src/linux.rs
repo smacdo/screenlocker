@@ -3,6 +3,38 @@ use std::process::Command;
 
 use crate::{Error, Result};
 
+struct LockCommand<'a> {
+    exe: &'a str,
+    args: &'a [&'a str],
+}
+
+static DEFAULT_COMMANDS: [LockCommand; 6] = [
+    LockCommand {
+        exe: "/usr/bin/xdg-screensaver",
+        args: &["lock"],
+    },
+    LockCommand {
+        exe: "/usr/bin/gnome-screensaver-command",
+        args: &["--lock"],
+    },
+    LockCommand {
+        exe: "/usr/bin/qdbus",
+        args: &["org.freedesktop.ScreenSaver", "/ScreenSaver", "Lock"],
+    },
+    LockCommand {
+        exe: "/usr/bin/xscreensaver-command",
+        args: &["-lock"],
+    },
+    LockCommand {
+        exe: "/usr/bin/xlock",
+        args: &["-mode", "blank"],
+    },
+    LockCommand {
+        exe: "/usr/bin/slock",
+        args: &[],
+    },
+];
+
 pub fn lock_screen_linux() -> Result<()> {
     // TODO(smacdo): Add user customization via config file.
 
@@ -11,15 +43,16 @@ pub fn lock_screen_linux() -> Result<()> {
     // `arg` return `&mut Command` making it impossible to store into an array.
     // My solution is to construct the comands in place, and then manually
     // configure them later. It's more verbose but fine I suppose.
-    let mut default_commands = [
-        Command::new("/usr/bin/xdg-screensaver"),
-        Command::new("/usr/bin/gnome-screensaver-command"),
-    ];
+    let mut commands = Vec::<Command>::with_capacity(DEFAULT_COMMANDS.len());
 
-    default_commands[0].arg("lock");
-    default_commands[1].arg("--lock");
+    for lc in &DEFAULT_COMMANDS {
+        let mut cmd = Command::new(lc.exe);
+        cmd.args(lc.args.clone());
 
-    run_first_found_exe(&mut default_commands)
+        commands.push(cmd);
+    }
+
+    run_first_found_exe(&mut commands).map(|_| ())
 }
 
 /// Search through a list of programs and execute the first one that is found on
@@ -31,7 +64,7 @@ pub fn lock_screen_linux() -> Result<()> {
 /// majority of desktop environments (Gnome, KDE, XFCE etc). If a hardcoded list
 /// is not sufficient then consider offering a user editable configuration file
 /// for endusers to customize.
-fn run_first_found_exe(possible_cmds: &mut [Command]) -> Result<()> {
+fn run_first_found_exe(possible_cmds: &mut [Command]) -> Result<usize> {
     // TODO(smacdo): Consider returning index of command that was selected.
     fn io_cmd_to_string(cmd: &Command) -> Option<String> {
         cmd.get_program().to_str().map(|s| s.to_string())
@@ -46,27 +79,27 @@ fn run_first_found_exe(possible_cmds: &mut [Command]) -> Result<()> {
     }
 
     // Find first command that exists on the system.
-    let mut cmd = possible_cmds
+    let cmd_pos = possible_cmds
         .iter_mut()
-        .find(|cmd| Path::is_file(Path::new(cmd.get_program())));
+        .position(|cmd| Path::is_file(Path::new(cmd.get_program())));
 
     // Execute the selected command, or return an error if no command could be
     // found on the user's systme.
-    match cmd.as_mut() {
-        Some(cmd) => match cmd.output() {
+    match cmd_pos {
+        Some(cmd_pos) => match possible_cmds[cmd_pos].output() {
             Ok(output) => {
                 // Only return sucess if the command executed succesfully and
                 // returned an error code of zero.
                 if output.status.success() {
-                    Ok(())
+                    Ok(cmd_pos)
                 } else {
                     Err(Error::NonZeroExit {
-                        cmd: io_cmd_to_string(cmd),
+                        cmd: io_cmd_to_string(&possible_cmds[cmd_pos]),
                         exit_code: output.status.code(),
                     })
                 }
             }
-            Err(e) => Err(io_error(cmd, &e)),
+            Err(e) => Err(io_error(&possible_cmds[cmd_pos], &e)),
         },
         None => Err(Error::NoExeFound),
     }
