@@ -13,7 +13,7 @@ pub type Win32ErrorCode = u32;
 type Result<T> = std::result::Result<T, Error>;
 
 /// Error information explaining why the screen couldn't be locked.
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Error {
     /// A Win32 API function reported an error code.
     Win32(Win32ErrorCode),

@@ -37,22 +37,7 @@ static DEFAULT_COMMANDS: [LockCommand; 6] = [
 
 pub fn lock_screen_linux() -> Result<()> {
     // TODO(smacdo): Add user customization via config file.
-
-    // The construction of `default_commands` is a little weird, but I cannot
-    // find a workaround. `Command` uses a builder pattern whereby methods like
-    // `arg` return `&mut Command` making it impossible to store into an array.
-    // My solution is to construct the comands in place, and then manually
-    // configure them later. It's more verbose but fine I suppose.
-    let mut commands = Vec::<Command>::with_capacity(DEFAULT_COMMANDS.len());
-
-    for lc in &DEFAULT_COMMANDS {
-        let mut cmd = Command::new(lc.exe);
-        cmd.args(lc.args.clone());
-
-        commands.push(cmd);
-    }
-
-    run_first_found_exe(&mut commands).map(|_| ())
+    run_first_found_exe(&DEFAULT_COMMANDS).map(|_| ())
 }
 
 /// Search through a list of programs and execute the first one that is found on
@@ -64,15 +49,10 @@ pub fn lock_screen_linux() -> Result<()> {
 /// majority of desktop environments (Gnome, KDE, XFCE etc). If a hardcoded list
 /// is not sufficient then consider offering a user editable configuration file
 /// for endusers to customize.
-fn run_first_found_exe(possible_cmds: &mut [Command]) -> Result<usize> {
-    // TODO(smacdo): Consider returning index of command that was selected.
-    fn io_cmd_to_string(cmd: &Command) -> Option<String> {
-        cmd.get_program().to_str().map(|s| s.to_string())
-    }
-
+fn run_first_found_exe(possible_cmds: &[LockCommand]) -> Result<usize> {
     fn io_error(cmd: &Command, e: &std::io::Error) -> Error {
         Error::ExeIoError {
-            cmd: io_cmd_to_string(cmd),
+            cmd: cmd.get_program().to_str().map(|s| s.to_string()),
             kind: e.kind(),
             msg: e.to_string(),
         }
@@ -80,41 +60,176 @@ fn run_first_found_exe(possible_cmds: &mut [Command]) -> Result<usize> {
 
     // Find first command that exists on the system.
     let cmd_pos = possible_cmds
-        .iter_mut()
-        .position(|cmd| Path::is_file(Path::new(cmd.get_program())));
+        .iter()
+        .position(|cmd| Path::is_file(Path::new(cmd.exe)));
 
     // Execute the selected command, or return an error if no command could be
-    // found on the user's systme.
+    // found on the user's system.
     match cmd_pos {
-        Some(cmd_pos) => match possible_cmds[cmd_pos].output() {
-            Ok(output) => {
-                // Only return sucess if the command executed succesfully and
-                // returned an error code of zero.
-                if output.status.success() {
-                    Ok(cmd_pos)
-                } else {
-                    Err(Error::NonZeroExit {
-                        cmd: io_cmd_to_string(&possible_cmds[cmd_pos]),
-                        exit_code: output.status.code(),
-                    })
+        Some(cmd_pos) => {
+            let cmd = &possible_cmds[cmd_pos];
+
+            let mut runnable = Command::new(cmd.exe);
+            runnable.args(cmd.args.clone());
+
+            match runnable.output() {
+                Ok(output) => {
+                    // Only return sucess if the command executed succesfully and
+                    // returned an error code of zero.
+                    if output.status.success() {
+                        Ok(cmd_pos)
+                    } else {
+                        Err(Error::NonZeroExit {
+                            cmd: Some(cmd.exe.to_string()),
+                            exit_code: output.status.code(),
+                        })
+                    }
                 }
+                Err(e) => Err(io_error(&runnable, &e)),
             }
-            Err(e) => Err(io_error(&possible_cmds[cmd_pos], &e)),
-        },
+        }
         None => Err(Error::NoExeFound),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    // TODO(smacdo): Write unit tests for `run_first_found_exe`.
-    // Scenarios:
-    //  - one command that exists and returns 0 -> Ok(())
-    //  - one command that doe not exist -> Err(NoExeFound).
-    //  - n commands, none that exist -> Err(NoExeFound).
-    //  - n commands, one that exists -> Ok(())
-    //  - one command that exists and returns 27 -> Err(NonZeroExit)
-    //  - same as above but path is not valid utf8 -> Err(NonZeroExit)
-    //  - one command that exists and terminates via signal -> Err(NonZeroExit).
-    //  - one command that is not executable -> Err(io_error).
+    use super::*;
+    use std::path::PathBuf;
+
+    fn path_to_test_cmd(script_name: &str) -> PathBuf {
+        let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        d.push("tests/");
+        d.push(script_name);
+        d
+    }
+
+    #[test]
+    fn one_runnable_exe_exit_zero_returns_ok() {
+        let cmd_path = path_to_test_cmd("run_success.sh");
+        let cmds: [LockCommand; 1] = [LockCommand {
+            exe: cmd_path.to_str().unwrap(),
+            args: &[],
+        }];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(Ok(0), result);
+    }
+
+    #[test]
+    fn one_runnable_exe_does_not_exist_returns_err() {
+        let cmds: [LockCommand; 1] = [LockCommand {
+            exe: "does_not_exist",
+            args: &[],
+        }];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(Err(crate::Error::NoExeFound), result);
+    }
+
+    #[test]
+    fn multiple_runnable_exe_none_exist_returns_err() {
+        let cmds: [LockCommand; 3] = [
+            LockCommand {
+                exe: "does_not_exist_1",
+                args: &[],
+            },
+            LockCommand {
+                exe: "does_not_exist_2",
+                args: &[],
+            },
+            LockCommand {
+                exe: "does_not_exist_3",
+                args: &[],
+            },
+        ];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(Err(crate::Error::NoExeFound), result);
+    }
+
+    #[test]
+    fn multiple_runnable_exe_one_exist_returns_ok_with_index() {
+        let cmd_path = path_to_test_cmd("run_success.sh");
+
+        let cmds: [LockCommand; 3] = [
+            LockCommand {
+                exe: "does_not_exist_1",
+                args: &[],
+            },
+            LockCommand {
+                exe: cmd_path.to_str().unwrap(),
+                args: &[],
+            },
+            LockCommand {
+                exe: "does_not_exist_3",
+                args: &[],
+            },
+        ];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(Ok(1), result);
+    }
+
+    #[test]
+    fn runnable_exe_exit_non_zero_returns_err_with_exit_code() {
+        let cmd_path = path_to_test_cmd("run_error_27.sh");
+        let cmds: [LockCommand; 1] = [LockCommand {
+            exe: cmd_path.to_str().unwrap(),
+            args: &[],
+        }];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(
+            Err(Error::NonZeroExit {
+                cmd: Some(cmd_path.to_str().unwrap().to_string()),
+                exit_code: Some(27)
+            }),
+            result
+        );
+    }
+
+    #[test]
+    fn one_runnable_exe_without_execute_returns_err() {
+        let cmd_path = path_to_test_cmd("run_no_exec.sh");
+        let cmds: [LockCommand; 1] = [LockCommand {
+            exe: cmd_path.to_str().unwrap(),
+            args: &[],
+        }];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(
+            Err(Error::ExeIoError {
+                cmd: Some(cmd_path.to_str().unwrap().to_string()),
+                kind: std::io::ErrorKind::PermissionDenied,
+                msg: "Permission denied (os error 13)".to_string(),
+            }),
+            result
+        );
+    }
+
+    #[test]
+    fn first_runnable_exe_is_used_even_if_error() {
+        let cmd_path1 = path_to_test_cmd("run_error_27.sh");
+        let cmd_path2 = path_to_test_cmd("run_success.sh");
+
+        let cmds: [LockCommand; 2] = [
+            LockCommand {
+                exe: cmd_path1.to_str().unwrap(),
+                args: &[],
+            },
+            LockCommand {
+                exe: cmd_path2.to_str().unwrap(),
+                args: &[],
+            },
+        ];
+        let result = run_first_found_exe(&cmds);
+        assert_eq!(
+            Err(Error::NonZeroExit {
+                cmd: Some(cmd_path1.to_str().unwrap().to_string()),
+                exit_code: Some(27)
+            }),
+            result
+        );
+    }
+
+    // TODO(smacdo): Write integrations tests for `lock_screen_linux`.
+    //  - Write comprehensive integration tests including scenarios:
+    //    - command that exists and returns non-zero with bad utf name.
+    //    - command that exists and terminates via signal.
+    //    - above but with bad utf name.
 }
