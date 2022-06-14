@@ -1,14 +1,14 @@
 [package]
 authors = ["Scott MacDonald <scott@smacdo.com>"]
 categories = ["command-line-utilities"]
-description = "Command line tool to lock your desktop session"
+description = "Reusable library and command line tool to lock your desktop session"
 edition = "2021"
-keywords = ["cli", "library", "program"]
+keywords = ["cli", "screenlocker", "lockscreen"]
 license = "Apache-2.0"
 name = "screenlocker"
 readme = "README.md"
 repository = "https://github.com/smacdo/screenlocker"
-version = "0.3.0"
+version = "0.3.1"
 
 [lib]
 crate-type = ["lib"]
