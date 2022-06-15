@@ -16,20 +16,15 @@ $ screenlocker     # if $PATH contains `~/.cargo/bin`
 Please contact me or create a new issue if you would like to have downloadable installers for your platform rather than use cargo.
 
 ## Usage
-### Command line
-Screenlocker is invoked on the command line with no parameters, and will immediately lock your desktop session or print an error if it cannot.
-
-### Library
-Screenlocker is also available as a reusable Rust library. The latest API documentation is available from a link on
-[screenlockers's crates.io page](https://crates.io/crates/screenlocker).
-
-All you need is the `lock_screen` function, as seen here in this example:
+The latest API documentation is available from a link on [screenlockers's crates.io page](https://crates.io/crates/screenlocker). All you need is the `lock_screen` function, as seen here in this example:
 
 ```rust
 use screenlocker::lock_screen;
 
 fn main() {
-    lock_screen();
+    lock_screen().unwrap_or_else(|err| {
+      eprintln!("{}", err);
+    });
 }
 ```
 
