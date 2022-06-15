@@ -2,6 +2,8 @@
 ![CI build state](https://img.shields.io/github/workflow/status/smacdo/screenlocker/Rust/main)
 ![Code license](https://img.shields.io/github/license/smacdo/screenlocker)
 ![Crate version](https://img.shields.io/crates/v/screenlocker)
+![Maintenance state](https://img.shields.io/maintenance/yes/2032)
+
 
 Screenlocker is a cross platform command line tool that locks your desktop session until a password is entered. It is also a reusable library for developers who want to perform this action programmatically.
 
