@@ -8,7 +8,12 @@ struct LockCommand<'a> {
     args: &'a [&'a str],
 }
 
-static DEFAULT_COMMANDS: [LockCommand; 6] = [
+static DEFAULT_COMMANDS: [LockCommand; 10] = [
+    // xfce4-screensaver must be tried before xdg-screensaver to ensure success on XUbuntu
+    LockCommand {
+        exe: "/usr/bin/xfce4-screensaver-command",
+        args: &["--lock"],
+    },
     LockCommand {
         exe: "/usr/bin/xdg-screensaver",
         args: &["lock"],
@@ -22,8 +27,16 @@ static DEFAULT_COMMANDS: [LockCommand; 6] = [
         args: &["org.freedesktop.ScreenSaver", "/ScreenSaver", "Lock"],
     },
     LockCommand {
+        exe: "/usr/bin/light-locker-command",
+        args: &["-lock"],
+    },
+    LockCommand {
         exe: "/usr/bin/xscreensaver-command",
         args: &["-lock"],
+    },
+    LockCommand {
+        exe: "/usr/bin/mate-screensaver-command",
+        args: &["--lock"],
     },
     LockCommand {
         exe: "/usr/bin/xlock",
@@ -32,6 +45,10 @@ static DEFAULT_COMMANDS: [LockCommand; 6] = [
     LockCommand {
         exe: "/usr/bin/slock",
         args: &[],
+    },
+    LockCommand {
+        exe: "/usr/bin/physlock",
+        args: &["-d"],
     },
 ];
 
