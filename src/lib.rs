@@ -70,9 +70,7 @@ impl fmt::Display for Error {
                     Some(exit_code) => {
                         format!("non-succesful exit-code {}", exit_code)
                     }
-                    None => {
-                        format!("signal termination")
-                    }
+                    None => "signal termination".to_owned(),
                 };
 
                 let cmd_name = match cmd {
