@@ -9,7 +9,11 @@ mod linux;
 
 use std::fmt;
 
+/// Holds a Win32 error code retrieved from the `GetLastError` Windows API
+/// function.
 pub type Win32ErrorCode = u32;
+
+/// Screenlocker result.
 type Result<T> = std::result::Result<T, Error>;
 
 /// Error information explaining why the screen couldn't be locked.
@@ -51,7 +55,7 @@ impl fmt::Display for Error {
         match self {
             Error::Win32(ec) => write!(f, "GetLastResult() returned {}", ec),
             Error::UnsupportedPlatform => {
-                write!(f, "This platform is not supported - please file a bug")
+                write!(f, "this platform is not supported - please file a bug")
             }
             Error::ExeIoError { cmd, kind, msg } => {
                 let cmd_name = match cmd {
@@ -89,6 +93,16 @@ impl fmt::Display for Error {
 
 /// Locks the computer screen by hiding the current desktop, and requiring
 /// the user to re-enter their password before continuing.
+///
+/// # Errors
+/// If `lock_screen()` encounters any errors while trying to lock the screen, an
+/// error variant will be returned. Macs do report errors, and while possible on
+/// Windows it is exceptionally unlikely. Screen locking on Linux could return
+/// an error if none of the hard coded screen locking programs exist on the
+/// system.
+///
+/// Please open an issue or create a pull request if the hardcoded Linux list
+/// is missing a screen locking program for your distro.
 pub fn lock_screen() -> Result<()> {
     #[cfg(target_os = "macos")]
     return crate::macos::lock_screen_mac();

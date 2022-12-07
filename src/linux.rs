@@ -3,11 +3,21 @@ use std::process::Command;
 
 use crate::{Error, Result};
 
+/// Defines a potential program that can be executed to lock the computer
+/// screen.
 struct LockCommand<'a> {
+    /// Absolute path to the expected location of this program.
     exe: &'a str,
+    /// A list of parameters to pass to the program.
     args: &'a [&'a str],
 }
 
+/// A list of potential screen locking programs to try when locking the screen
+/// on Linux. Not all of these programs may exist and some might also return
+/// errors so continue to try all possibilities in the list.
+///
+/// This list is ordered with the most popular commands (popular meaning highest
+/// percentage across distros and versions) to least popular.
 static DEFAULT_COMMANDS: [LockCommand; 6] = [
     LockCommand {
         exe: "/usr/bin/xdg-screensaver",
@@ -35,6 +45,8 @@ static DEFAULT_COMMANDS: [LockCommand; 6] = [
     },
 ];
 
+/// Trigger a Linux screen lock by trying a hardcoded list of potential screen
+/// locking programs.
 pub fn lock_screen_linux() -> Result<()> {
     // TODO(smacdo): Add user customization via config file.
     run_first_found_exe(&DEFAULT_COMMANDS).map(|_| ())
@@ -49,6 +61,20 @@ pub fn lock_screen_linux() -> Result<()> {
 /// majority of desktop environments (Gnome, KDE, XFCE etc). If a hardcoded list
 /// is not sufficient then consider offering a user editable configuration file
 /// for endusers to customize.
+///
+/// ````notest
+/// let cmds: [LockCommand; 3] = [
+///     LockCommand {
+///         exe: "does_not_exist_1",
+///         args: &[],
+///     },
+///     LockCommand {
+///         exe: cmd_path.to_str().unwrap(),
+///         args: &[],
+///     },
+/// ];
+/// let result = run_first_found_exe(&cmds);
+/// ```
 fn run_first_found_exe(possible_cmds: &[LockCommand]) -> Result<usize> {
     fn io_error(cmd: &Command, e: &std::io::Error) -> Error {
         Error::ExeIoError {
