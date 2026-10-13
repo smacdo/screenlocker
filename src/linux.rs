@@ -18,7 +18,7 @@ struct LockCommand<'a> {
 ///
 /// This list is ordered with the most popular commands (popular meaning highest
 /// percentage across distros and versions) to least popular.
-static DEFAULT_COMMANDS: [LockCommand; 6] = [
+static DEFAULT_COMMANDS: [LockCommand; 7] = [
     LockCommand {
         exe: "/usr/bin/xdg-screensaver",
         args: &["lock"],
@@ -41,6 +41,10 @@ static DEFAULT_COMMANDS: [LockCommand; 6] = [
     },
     LockCommand {
         exe: "/usr/bin/slock",
+        args: &[],
+    },
+    LockCommand {
+        exe: "/usr/bin/hyprlock",
         args: &[],
     },
 ];
@@ -84,38 +88,56 @@ fn run_first_found_exe(possible_cmds: &[LockCommand]) -> Result<usize> {
         }
     }
 
-    // Find first command that exists on the system.
-    let cmd_pos = possible_cmds
-        .iter()
-        .position(|cmd| Path::is_file(Path::new(cmd.exe)));
+    let mut first_error = None;
 
-    // Execute the selected command, or return an error if no command could be
-    // found on the user's system.
-    match cmd_pos {
-        Some(cmd_pos) => {
-            let cmd = &possible_cmds[cmd_pos];
+    // Iterate over all possible lock commands. Return an error if no command works
+    // on the user's system.
+    for (cmd_pos, cmd) in possible_cmds.iter().enumerate() {
+        // Check if the command exists on the system, if not continue.
+        if !Path::is_file(Path::new(cmd.exe)) {
+            continue;
+        }
 
-            let mut runnable = Command::new(cmd.exe);
-            runnable.args(cmd.args.clone());
+        // Try to execute the command.
+        let mut runnable = Command::new(cmd.exe);
+        runnable.args(cmd.args.clone());
 
-            match runnable.output() {
-                Ok(output) => {
-                    // Only return sucess if the command executed succesfully and
-                    // returned an error code of zero.
-                    if output.status.success() {
-                        Ok(cmd_pos)
-                    } else {
-                        Err(Error::NonZeroExit {
+        match runnable.output() {
+            Ok(output) => {
+                // Only return success if the command executed successfully and
+                // returned an error code of zero.
+                if output.status.success() {
+                    return Ok(cmd_pos);
+                } else {
+                    if first_error != None {
+                        let err = Error::NonZeroExit {
                             cmd: Some(cmd.exe.to_string()),
                             exit_code: output.status.code(),
-                        })
+                        };
+                        eprintln!("{err:?}");
+                    } else {
+                        first_error = Some(Error::NonZeroExit {
+                            cmd: Some(cmd.exe.to_string()),
+                            exit_code: output.status.code(),
+                        });
                     }
                 }
-                Err(e) => Err(io_error(&runnable, &e)),
             }
-        }
-        None => Err(Error::NoExeFound),
-    }
+            Err(e) => {
+                if first_error != None {
+                    let err = io_error(&runnable, &e);
+                    eprintln!("{err:?}");
+                } else {
+                    first_error = Some(io_error(&runnable, &e));
+                }
+            },
+        };
+    };
+
+    Err(first_error.unwrap_or_else(|| {
+        // Replace this with an appropriate variant from your Error enum.
+        Error::NoExeFound
+    }))
 }
 
 #[cfg(test)]
@@ -229,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn first_runnable_exe_is_used_even_if_error() {
+    fn second_runnable_exe_is_used_if_first_error() {
         let cmd_path1 = path_to_test_cmd("run_error_27.sh");
         let cmd_path2 = path_to_test_cmd("run_success.sh");
 
@@ -244,13 +266,7 @@ mod tests {
             },
         ];
         let result = run_first_found_exe(&cmds);
-        assert_eq!(
-            Err(Error::NonZeroExit {
-                cmd: Some(cmd_path1.to_str().unwrap().to_string()),
-                exit_code: Some(27)
-            }),
-            result
-        );
+        assert_eq!(Ok(1), result);
     }
 
     // TODO(smacdo): Write integrations tests for `lock_screen_linux`.
